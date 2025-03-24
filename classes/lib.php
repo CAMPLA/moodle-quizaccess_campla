@@ -61,6 +61,28 @@ class lib {
         self::$caps['canusecampla'] = has_capability('quizaccess/campla:canusecampla', $context);
     }
 
+
+    /**
+     * JWT token encode
+     *
+     * @param \stdClass $payload Payload data object
+     * @param string $key JWT encryption secret
+     * @return string Base64 and url encoded string
+     */
+    public static function jwtencode(\stdClass $payload, string $key): string {
+
+        $header = json_encode([ "alg" => "HS256", "typ" => "JWT" ]);
+
+        $header = urlencode(base64_encode($header));
+        $payload = json_encode($payload);
+        $payload = urlencode(base64_encode($payload));
+
+        $signature = hash_hmac("sha256", $header . "." . $payload, $key, true);
+        $signature = urlencode(base64_encode($signature));
+        return $header . "." . $payload . "." . $signature;
+    }
+
+
     /**
      * Send to CAMPLA.
      *
@@ -96,26 +118,50 @@ class lib {
                 'fullname' => fullname($user),
             ];
         }
+
+        // Random SafeExamBrowser Key --> Where does the SafeExamBrowser Plugin store the examination keys for
+        // the quiz?
+        $randombytes = random_bytes(256);
+        $safeExamBrowserKey = hash('sha256', bin2hex($randombytes) . $formdata->quizname . $formdata->quizstarturl);
+
+        $clmodule = new \stdClass();
+        $clmodule->name = $formdata->coursename;
+
+        $clexamination = new \stdClass();
+        $clexamination->name = $formdata->quizname;
+        $clexamination->startUrl = $formdata->quizstarturl;
+        $clexamination->start = $formdata->quizopensunixtime;
+        $clexamination->end = $formdata->quizclosesunixtime;
+        $clexamination->safeExamBrowserKey = $safeExamBrowserKey;
+
         $record = new \stdClass();
-        $record->quizname = $formdata->quizname;
-        $record->coursename = $formdata->coursename;
-        $record->quizurl = $formdata->quizstarturl;
-        $record->quizopens = $formdata->quizopensunixtime;
-        $record->quizcloses = $formdata->quizclosesunixtime;
-        $record->students = $formdata->students;
-        $record->submitteremail = $USER->email;
-        $record->created_at = time();
+        $record->module = $clmodule;
+        $record->examination = $clexamination;
+        $record->owner = $USER->email;
         $record->students = $students;
+        $record->createdAt = time();
 
         // Sending the data to CAMPLA.
         $url = get_config('quizaccess_campla', 'camplabasisurl');
+        $lmsid = get_config('quizaccess_campla', 'lmsid');
         $secret = get_config('quizaccess_campla', 'secret');
+
+        $tokenpayload = new \stdClass();
+        $tokenpayload->exp = time() + (60 * 60 * 12);
+        $tokenpayload->owner = $USER->email;
+        $tokenpayload->rand = rand(0, 1000000000);
+
+        $token = lib::jwtencode($tokenpayload, $secret);
 
         // Initiate cURL object with URL.
         $ch = curl_init($url);
 
         curl_setopt( $ch, CURLOPT_POSTFIELDS, trim(json_encode($record), '[]'));
-        curl_setopt( $ch, CURLOPT_HTTPHEADER, ['Content-Type:application/json']);
+        curl_setopt( $ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Campla-lms-id: ' . $lmsid,
+            'Campla-lms-token: ' . $token
+        ]);
 
         // Return response instead of printing.
         curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
@@ -123,11 +169,12 @@ class lib {
         // Send request.
         $result = curl_exec($ch);
         if ($result === false) {
+            $errornumber = curl_errno($ch);
             die(curl_error($ch));
-            return false;
+            return $errornumber;
         }
         curl_close($ch);
 
-        return true;
+        return 201;
     }
 }

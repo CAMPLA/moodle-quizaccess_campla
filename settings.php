@@ -40,6 +40,12 @@ if ($hassiteconfig) {
         '',
         PARAM_URL));
 
+    $settings->add(new admin_setting_configtext('quizaccess_campla/lmsid',
+        get_string('camplalmsid', 'quizaccess_campla'),
+        get_string('camplalmsid_desc', 'quizaccess_campla'),
+        '',
+        PARAM_RAW));
+
     $settings->add(new admin_setting_configtext('quizaccess_campla/secret',
         get_string('camplasecret', 'quizaccess_campla'),
         get_string('camplasecret_desc', 'quizaccess_campla'),

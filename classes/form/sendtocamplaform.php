@@ -90,16 +90,28 @@ class sendtocamplaform extends \core_form\dynamic_form {
         lib::init();
         $success = lib::sendtocampla($formdata);
 
-        if ($success) {
-            return [
-                'status' => 200,
-                'message' => get_string('sendtocamplasuccess', 'quizaccess_campla'),
-            ];
+        switch ($success) {
+            case 201:
+                return [
+                    'status' => 200,
+                    'message' => get_string('sendtocamplasuccesscreate', 'quizaccess_campla'),
+                ];
+            case 200:
+                return [
+                    'status' => 200,
+                    'message' => get_string('sendtocamplasuccessupdate', 'quizaccess_campla'),
+                ];
+            case 400:
+                return [
+                    'status' => 201,
+                    'message' => get_string('sendtocamplafailforbidden', 'quizaccess_campla'),
+                ];
+            default:
+                return [
+                    'status' => 500,
+                    'message' => get_string('sendtocamplafail', 'quizaccess_campla'),
+                ];
         }
-        return [
-            'status' => 500,
-            'message' => get_string('sendtocamplafail', 'quizaccess_campla'),
-        ];
     }
 
 
@@ -132,8 +144,21 @@ class sendtocamplaform extends \core_form\dynamic_form {
         $mform->setType('coursename', PARAM_NOTAGS);
         $mform->addRule('coursename', get_string('required'), 'required', null, 'client');
 
+        // Supported lockdown tools
+        $camplasecurityleveloptions = array(
+            '5' => 'SafeExamBrowser',
+            '1' => 'Lernstick',
+        );
+        $mform->addElement('select', 'camplasecuritylevel', get_string('camplasecuritylevel', 'quizaccess_campla'), $camplasecurityleveloptions);
+        $mform->setDefault('camplasecuritylevel', '5');
+        $mform->setType('camplasecuritylevel', PARAM_NOTAGS);
+
         $mform->addElement('text', 'quizurl', get_string('quizurl', 'quizaccess_campla'));
         $mform->setType('quizurl', PARAM_URL);
+
+        //TODO: Should only be showed if security level 5 is selected -> SafeExamBrowser
+        $mform->addElement('password', 'camplasebexitpassword', get_string('camplasebexitpassword', 'quizaccess_campla'));
+        $mform->setType('camplasebexitpassword', PARAM_RAW);
 
         $mform->addElement('text', 'quizopens', get_string('quizopens', 'mod_quiz'));
         $mform->setType('quizopens', PARAM_NOTAGS);
@@ -187,6 +212,8 @@ class sendtocamplaform extends \core_form\dynamic_form {
             'quizstarturl' => $quizurl,
             'quizopens' => $quizopens,
             'quizcloses' => $quizcloses,
+            'camplasecuritylevel' => $camplasecuritylevel,
+            'camplasebexitpassword' => $camplasebexitpassword,
             'quizopensunixtime' => $quizopensunixtime,
             'quizclosesunixtime' => $quizclosesunixtime,
             'cmid' => $cmid,
