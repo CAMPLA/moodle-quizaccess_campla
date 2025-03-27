@@ -78,7 +78,7 @@ class lib {
         $lmsid = get_config('quizaccess_campla', 'lmsid');
         $secret = get_config('quizaccess_campla', 'secret');
 
-        $url = $baseurl . "/auth" .
+        $url = $baseurl . "/lms/auth" .
         $ch = curl_init($url);
 
         $body = new \stdClass();
@@ -102,6 +102,40 @@ class lib {
         }
         curl_close($ch);
     }
+
+   /**
+    * Send API request
+    *
+    * @param \stdClass $data The form data in a URI encoded param string
+    * /
+    * @return bool|int
+    * @throws \coding_exception
+    * @throws \dml_exception
+    */
+   public static function callAPI(string: $route, \stdClass $data): bool|int {
+        // TODO: Route und Method, error handling
+       // Initiate cURL object with URL.
+       $ch = curl_init($baseurl . "/lms/". $route);
+
+       $currentaccesstoken = self::$accesstoken;
+       curl_setopt( $ch, CURLOPT_POSTFIELDS, trim(json_encode($record), '[]'));
+       curl_setopt( $ch, CURLOPT_HTTPHEADER, [
+           'Content-Type: application/json',
+           'Authorization: Bearer ' . $currentaccesstoken
+       ]);
+
+       // Return response instead of printing.
+       curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+
+       // Send request.
+       $response = curl_exec($ch);
+       if ($response === false) {
+           $errornumber = curl_errno($ch);
+           die(curl_error($ch));
+           return $errornumber;
+       }
+       curl_close($ch);
+   }
 
     /**
      * Create CAMPLA examination with class and module
@@ -162,13 +196,10 @@ class lib {
         $record->createdAt = time();
 
         // Sending the data to CAMPLA.
-        $url = get_config('quizaccess_campla', 'camplabasisurl');
-        $lmsid = get_config('quizaccess_campla', 'lmsid');
-        $secret = get_config('quizaccess_campla', 'secret');
-
+        $baseurl = get_config('quizaccess_campla', 'camplabasisurl');
 
         // Initiate cURL object with URL.
-        $ch = curl_init($url);
+        $ch = curl_init($baseurl . "/examination");
 
         $currentaccesstoken = self::$accesstoken;
         curl_setopt( $ch, CURLOPT_POSTFIELDS, trim(json_encode($record), '[]'));
@@ -181,8 +212,8 @@ class lib {
         curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 
         // Send request.
-        $result = curl_exec($ch);
-        if ($result === false) {
+        $response = curl_exec($ch);
+        if ($response === false) {
             $errornumber = curl_errno($ch);
             die(curl_error($ch));
             return $errornumber;
