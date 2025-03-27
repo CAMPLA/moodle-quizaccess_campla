@@ -88,7 +88,7 @@ class sendtocamplaform extends \core_form\dynamic_form {
     public function process_dynamic_submission() {
         $formdata = $this->get_data();
         lib::init();
-        $success = lib::sendtocampla($formdata);
+        $success = lib::createExamination($formdata);
 
         switch ($success) {
             case 201:

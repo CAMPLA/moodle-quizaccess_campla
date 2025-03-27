@@ -48,6 +48,13 @@ class lib {
     public static $caps;
 
     /**
+     * Access token
+     *
+     * @var string
+     */
+    public static $accesstoken = NULL;
+
+    /**
      * Init function.
      *
      * should be called before using
@@ -61,30 +68,43 @@ class lib {
         self::$caps['canusecampla'] = has_capability('quizaccess/campla:canusecampla', $context);
     }
 
-
     /**
-     * JWT token encode
+     * Requests an access token
      *
-     * @param \stdClass $payload Payload data object
-     * @param string $key JWT encryption secret
-     * @return string Base64 and url encoded string
+     * @return \stdClass on success.
      */
-    public static function jwtencode(\stdClass $payload, string $key): string {
+    public static function authenticate() {
+        $baseurl = get_config('quizaccess_campla', 'camplabasisurl');
+        $lmsid = get_config('quizaccess_campla', 'lmsid');
+        $secret = get_config('quizaccess_campla', 'secret');
 
-        $header = json_encode([ "alg" => "HS256", "typ" => "JWT" ]);
+        $url = $baseurl . "/auth" .
+        $ch = curl_init($url);
 
-        $header = urlencode(base64_encode($header));
-        $payload = json_encode($payload);
-        $payload = urlencode(base64_encode($payload));
+        $body = new \stdClass();
+        $body->secret = $secret;
+        $body->lmsid = $lmsid;
 
-        $signature = hash_hmac("sha256", $header . "." . $payload, $key, true);
-        $signature = urlencode(base64_encode($signature));
-        return $header . "." . $payload . "." . $signature;
+        $ch = curl_init($url);
+        curl_setopt( $ch, CURLOPT_POSTFIELDS, trim(json_encode($body), '[]'));
+        curl_setopt( $ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+
+
+        $response = curl_exec($ch);
+        if (curl_errno($ch)) {
+            echo 'Error:' . curl_error($ch);
+        } else {
+            $responseData = json_decode($response, true);
+            self::$accesstoken = $responseData->token;
+        }
+        curl_close($ch);
     }
 
-
     /**
-     * Send to CAMPLA.
+     * Create CAMPLA examination with class and module
      *
      * @param \stdClass $formdata The form data in a URI encoded param string
      * @return boolean on success.
@@ -93,7 +113,7 @@ class lib {
      * @throws \coding_exception
      * @throws \dml_exception
      */
-    public static function sendtocampla(\stdClass $formdata): bool|int {
+    public static function createExamination(\stdClass $formdata): bool|int {
         global $USER;
 
         if (!self::$caps['canusecampla'] || !$formdata) {
@@ -146,21 +166,15 @@ class lib {
         $lmsid = get_config('quizaccess_campla', 'lmsid');
         $secret = get_config('quizaccess_campla', 'secret');
 
-        $tokenpayload = new \stdClass();
-        $tokenpayload->exp = time() + (60 * 60 * 12);
-        $tokenpayload->owner = $USER->email;
-        $tokenpayload->rand = rand(0, 1000000000);
-
-        $token = lib::jwtencode($tokenpayload, $secret);
 
         // Initiate cURL object with URL.
         $ch = curl_init($url);
 
+        $currentaccesstoken = self::$accesstoken;
         curl_setopt( $ch, CURLOPT_POSTFIELDS, trim(json_encode($record), '[]'));
         curl_setopt( $ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'Campla-lms-id: ' . $lmsid,
-            'Campla-lms-token: ' . $token
+            'Authorization: Bearer ' . $currentaccesstoken
         ]);
 
         // Return response instead of printing.
